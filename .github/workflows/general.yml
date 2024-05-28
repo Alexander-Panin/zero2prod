@@ -21,14 +21,14 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust Cache Action
         uses: Swatinem/rust-cache@v2
         with:
           key: sqlx-${{ env.SQLX_VERSION }}
-
       - name: Install sqlx-cli
         run:
             cargo install sqlx-cli
@@ -36,13 +36,10 @@ jobs:
             --features ${{ env.SQLX_FEATURES }}
             --no-default-features
             --locked
-
       - name: Install postgresql-client
         run: sudo apt-get update && sudo apt-get install postgresql-client -y
-
       - name: Migrate database
         run: SKIP_DOCKER=true ./scripts/init_db.sh
-
       - name: Run tests
         run: cargo test
 
@@ -91,7 +88,7 @@ jobs:
       - name: Linting
         run: cargo clippy -- -D warnings
 
- coverage:
+  coverage:
     name: Code coverage
     runs-on: ubuntu-latest
     services:
