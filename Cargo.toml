@@ -17,7 +17,6 @@ config = "0.14.0"
 serde = { version = "1", features = ["derive"]}
 tracing = { version = "0.1.40", features = ["log"] }
 tracing-actix-web = "0.7.10"
-tracing-bunyan-formatter = "0.3.9"
 tracing-futures = "0.2.5"
 tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["registry", "env-filter"] }
@@ -29,10 +28,10 @@ default-features = false
 features = [
     "runtime-tokio-rustls",
     "macros",
-    "postgres",
     "uuid",
     "chrono",
-    "migrate"
+    "migrate",
+    "sqlite"
 ]
 
 [dev-dependencies]
