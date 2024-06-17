@@ -16,10 +16,7 @@ pub struct FormData {
         subscriber_name= %form.name
     )
 )]
-pub async fn subscribe(
-    form: web::Form<FormData>,
-    pool: web::Data<SqlitePool>,
-) -> impl Responder {
+pub async fn subscribe(form: web::Form<FormData>, pool: web::Data<SqlitePool>) -> impl Responder {
     match insert_subscriber(&form, &pool).await {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
@@ -30,10 +27,7 @@ pub async fn subscribe(
     name = "Saving new subscriber details in the database",
     skip(form, pool)
 )]
-pub async fn insert_subscriber(
-    form: &FormData,
-    pool: &SqlitePool,
-) -> Result<(), sqlx::Error> {
+pub async fn insert_subscriber(form: &FormData, pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let now = Utc::now();
     sqlx::query!(
         r#"

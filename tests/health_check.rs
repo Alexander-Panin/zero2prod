@@ -1,71 +1,47 @@
 use once_cell::sync::Lazy;
-use sqlx::{Connection, Executor, PgConnection, PgPool};
+use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::SqlitePool;
 use std::net::TcpListener;
-use uuid::Uuid;
+use std::time::{SystemTime, UNIX_EPOCH};
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::startup::run;
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 pub struct TestApp {
     pub address: String,
-    pub db_pool: PgPool,
+    pub db_pool: SqlitePool,
 }
 
-pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
-    let mut connection =
-        PgConnection::connect(&config.connection_string_without_db())
-            .await
-            .expect("Failed to connect to Postgres");
-    connection
-        .execute(
-            format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str(),
-        )
+pub async fn configure_database(config: &DatabaseSettings) -> SqlitePool {
+    SqlitePoolOptions::new()
+        .acquire_timeout(std::time::Duration::from_secs(2))
+        .connect(&config.connection_string())
         .await
-        .expect("Failed to create database.");
-    let connection_pool = PgPool::connect(&config.connection_string())
-        .await
-        .expect("Failed to connect to Postgres.");
-    sqlx::migrate!("./migrations")
-        .run(&connection_pool)
-        .await
-        .expect("Failed to migrate the database");
-    connection_pool
+        .expect("Failed to connect to Sqlite.")
+}
+
+fn unix_timestamp() -> u128 {
+    let start = SystemTime::now();
+    start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_micros()
 }
 
 static TRACING: Lazy<()> = Lazy::new(|| {
-    let default_filter_level = "debug".to_string();
-    let subscriber_name = "test".to_string();
-    if std::env::var("TEST_LOG").is_ok() {
-        let subscriber = get_subscriber(
-            subscriber_name,
-            default_filter_level,
-            std::io::stdout,
-        );
-        init_subscriber(subscriber);
-    } else {
-        let subscriber = get_subscriber(
-            subscriber_name,
-            default_filter_level,
-            std::io::sink,
-        );
-        init_subscriber(subscriber);
-    };
+    let subscriber = get_subscriber("test".to_string());
+    init_subscriber(subscriber);
 });
 
 async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
-
-    let listener =
-        TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{port}");
-    let mut configuration =
-        get_configuration().expect("Failed to read configuration.");
-    configuration.database.database_name = Uuid::new_v4().to_string();
+    let configuration = get_configuration().expect("Failed to read configuration.");
     let connection_pool = configure_database(&configuration.database).await;
 
-    let server = run(listener, connection_pool.clone())
-        .expect("Failed to connect to Postgres");
+    let server = run(listener, connection_pool.clone()).expect("Failed to connect to Sqlite");
     let _ = tokio::spawn(server);
     TestApp {
         address,
@@ -76,24 +52,35 @@ async fn spawn_app() -> TestApp {
 #[actix_rt::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     let app = spawn_app().await;
-
     let client = reqwest::Client::new();
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    let now = unix_timestamp();
+    let name = format!("John Woo_{now}");
+    let email = format!("{now}_ursula_le_guin%40ya.ru");
+    let email_with_dog = format!("{now}_ursula_le_guin@ya.ru");
     let response = client
         .post(&format!("{}/subscriptions", app.address))
         .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
+        .body(format!("name={}&email={}", name, email))
         .send()
         .await
         .expect("Failed to execute request.");
     assert_eq!(200, response.status().as_u16());
 
-    let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
+    let query = sqlx::query!(
+        r#"
+            SELECT email, name FROM subscriptions
+            where email = ? and name = ?
+        "#,
+        email_with_dog,
+        name
+    );
+
+    let saved = query
         .fetch_one(&app.db_pool)
         .await
         .expect("Failed to fetch saved subscription.");
-    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
-    assert_eq!(saved.name, "le guin");
+    assert_eq!(saved.email, email_with_dog);
+    assert_eq!(saved.name, name);
 }
 
 #[actix_rt::test]

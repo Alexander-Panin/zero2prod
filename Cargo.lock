@@ -3149,7 +3149,6 @@ dependencies = [
  "tracing-futures",
  "tracing-log",
  "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
