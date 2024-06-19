@@ -1,4 +1,4 @@
-use crate::domain::{NewSubscriber, SubscriberName, SubscriberEmail};
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use actix_web::{web, HttpResponse, Responder};
 use chrono::Utc;
 use sqlx::SqlitePool;
@@ -13,11 +13,11 @@ pub struct FormData {
 impl TryFrom<FormData> for NewSubscriber {
     type Error = String;
 
-    fn try_from(value: FormData) -> Result<Self, Self::Error> { 
+    fn try_from(value: FormData) -> Result<Self, Self::Error> {
         let name = SubscriberName::parse(value.name)?;
-        let email = SubscriberEmail::parse(value.email)?; 
+        let email = SubscriberEmail::parse(value.email)?;
         Ok(Self { email, name })
-    } 
+    }
 }
 
 #[tracing::instrument(
