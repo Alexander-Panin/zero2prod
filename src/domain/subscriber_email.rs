@@ -27,12 +27,6 @@ impl AsRef<str> for SubscriberEmail {
     }
 }
 
-impl AsRef<u32> for SubscriberEmail {
-    fn as_ref(&self) -> &u32 {
-        &42
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -40,11 +34,10 @@ mod tests {
     use fake::faker::internet::en::SafeEmail;
     use fake::Fake;
     use rand::rngs::ThreadRng;
-    use std::cell::Cell;
+    use std::cell::RefCell;
 
     thread_local! {
-        static RNG: Cell<ThreadRng> =
-            Cell::new(ThreadRng::default());
+        static RNG: RefCell<ThreadRng> = RefCell::new(ThreadRng::default());
     }
 
     #[derive(Debug, Clone)]
@@ -52,10 +45,10 @@ mod tests {
 
     impl quickcheck::Arbitrary for ValidEmailFixture {
         fn arbitrary(_g: &mut quickcheck::Gen) -> Self {
-            let mut rng = RNG.take();
-            let email = SafeEmail().fake_with_rng(&mut rng);
-            RNG.set(rng);
-            Self(email)
+            RNG.with_borrow_mut(|rng| {
+                let email = SafeEmail().fake_with_rng(rng);
+                Self(email)
+            })
         }
     }
 
