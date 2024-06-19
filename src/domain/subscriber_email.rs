@@ -39,22 +39,22 @@ mod tests {
     use claim::assert_err;
     use fake::faker::internet::en::SafeEmail;
     use fake::Fake;
-    use once_cell::sync::Lazy;
-    use rand::rngs::SmallRng;
-    use rand::SeedableRng;
-    use std::sync::Mutex;
+    use rand::rngs::ThreadRng;
+    use std::cell::Cell;
 
-    static RNG: Lazy<Mutex<SmallRng>> =
-        Lazy::new(|| Mutex::new(SmallRng::from_entropy()));
+    thread_local! {
+        static RNG: Cell<ThreadRng> =
+            Cell::new(ThreadRng::default());
+    }
 
     #[derive(Debug, Clone)]
     struct ValidEmailFixture(pub String);
 
     impl quickcheck::Arbitrary for ValidEmailFixture {
         fn arbitrary(_g: &mut quickcheck::Gen) -> Self {
-            let rng = Lazy::force(&RNG);
-            let mut data = rng.lock().unwrap();
-            let email = SafeEmail().fake_with_rng(&mut *data);
+            let mut rng = RNG.take();
+            let email = SafeEmail().fake_with_rng(&mut rng);
+            RNG.set(rng);
             Self(email)
         }
     }
