@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use validator::ValidateEmail;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SubscriberEmail(String);
 
 impl ValidateEmail for SubscriberEmail {

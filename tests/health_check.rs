@@ -4,6 +4,7 @@ use sqlx::SqlitePool;
 use std::net::TcpListener;
 use std::time::{SystemTime, UNIX_EPOCH};
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
+use zero2prod::email_client::EmailClient;
 use zero2prod::startup::run;
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
@@ -41,8 +42,15 @@ async fn spawn_app() -> TestApp {
     let configuration = get_configuration().expect("Failed to read configuration.");
     let connection_pool = configure_database(&configuration.database).await;
 
-    let server =
-        run(listener, connection_pool.clone()).expect("Failed to connect to Sqlite");
+    let sender_email = configuration
+        .email_client
+        .sender()
+        .expect("Invalid sender email address.");
+    let email_client =
+        EmailClient::new(configuration.email_client.base_url, sender_email);
+
+    let server = run(listener, connection_pool.clone(), email_client)
+        .expect("Failed to connect to Sqlite");
     let _ = tokio::spawn(server);
     TestApp {
         address,
